@@ -23,8 +23,6 @@ substitutions:
   _REGION: us-central1
   _REPO: icd-multiagent-predictor
   _SERVICE: icd-multiagent-predictor
-  # Runtime service account for Cloud Run (needs DLP, Vertex AI, BigQuery roles).
-  _RUNTIME_SA: icd-multiagent-predictor-runtime@$PROJECT_ID.iam.gserviceaccount.com
 
 # Full image path with the build's short commit SHA as the tag.
 images:
@@ -92,7 +90,7 @@ steps:
       - '--region=${_REGION}'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      - '--service-account=${_RUNTIME_SA}'
+      - '--service-account=icd-multiagent-predictor-runtime@$PROJECT_ID.iam.gserviceaccount.com'
       - '--port=8080'
       - '--cpu=2'
       - '--memory=4Gi'
