@@ -1,0 +1,109 @@
+# =========================================================================
+# cloudbuild.yaml
+# CI/CD pipeline for the ICD-10 Multi-Agent Predictor.
+#
+# Pipeline stages:
+#   1. Build the container image (Docker, multi-stage).
+#   2. Push the image to Artifact Registry.
+#   3. Deploy to Cloud Run as a public HTTPS service.
+#   4. Print the external public service URL for integration.
+#
+# Trigger this from a GitHub/Cloud Source Repository push, or manually:
+#
+#   gcloud builds submit --config cloudbuild.yaml \
+#       --substitutions=_REGION=us-central1
+#
+# Prerequisites (one-time):
+#   gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+#       artifactregistry.googleapis.com aiplatform.googleapis.com \
+#       dlp.googleapis.com bigquery.googleapis.com
+#   gcloud artifacts repositories create icd-predictor \
+#       --repository-format=docker --location=us-central1
+# =========================================================================
+
+substitutions:
+  _REGION: us-central1
+  _REPO: icd-predictor
+  _SERVICE: icd-predictor
+  # Runtime service account for Cloud Run (needs DLP, Vertex AI, BigQuery roles).
+  _RUNTIME_SA: icd-predictor-runtime@$PROJECT_ID.iam.gserviceaccount.com
+
+# Full image path with the build's short commit SHA as the tag.
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+steps:
+  # -----------------------------------------------------------------------
+  # 1. Build the Docker image.
+  # -----------------------------------------------------------------------
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'
+      - '.'
+
+  # -----------------------------------------------------------------------
+  # 2. Push both tags to Artifact Registry.
+  # -----------------------------------------------------------------------
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}'
+    waitFor: ['build']
+
+  # -----------------------------------------------------------------------
+  # 3. Deploy to Cloud Run (public, unauthenticated external URL).
+  #    Remove --allow-unauthenticated to require IAM/IAP auth instead.
+  # -----------------------------------------------------------------------
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - '${_SERVICE}'
+      - '--image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--service-account=${_RUNTIME_SA}'
+      - '--port=8080'
+      - '--cpu=2'
+      - '--memory=4Gi'
+      - '--concurrency=20'
+      - '--min-instances=0'
+      - '--max-instances=10'
+      - '--timeout=180'
+      - '--set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_REGION},BQ_DATASET=pathology,BQ_HISTORY_TABLE=historical_transactions,PUBMEDBERT_DEVICE=cpu,RAG_USE_VECTOR_SEARCH=true,ADK_APP_NAME=icd_predictor,LOG_LEVEL=INFO'
+    waitFor: ['push']
+
+  # -----------------------------------------------------------------------
+  # 4. Output the external public service URL for integration.
+  # -----------------------------------------------------------------------
+  - id: show-url
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        URL=$(gcloud run services describe ${_SERVICE} \
+          --region ${_REGION} --platform managed \
+          --format 'value(status.url)')
+        echo "======================================================"
+        echo "Deployed. Public service URL: $$URL"
+        echo "Health check:  $$URL/healthz"
+        echo "Predict (POST): $$URL/predict"
+        echo "======================================================"
+    waitFor: ['deploy']
+
+timeout: 1200s

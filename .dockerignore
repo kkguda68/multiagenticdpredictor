@@ -1,0 +1,22 @@
+# Files excluded from the Docker build context (smaller, safer images).
+.git
+.gitignore
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+*.egg-info
+
+# Local secrets / config
+.env
+*.log
+
+# Docs & CI (not needed at runtime)
+README.md
+cloudbuild.yaml
+bigquery_setup.sql
+
+# OS junk
+.DS_Store
+Thumbs.db
