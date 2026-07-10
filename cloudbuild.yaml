@@ -90,7 +90,6 @@ steps:
       - '--region=${_REGION}'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      - '--service-account=icd-multiagent-predictor-runtime@$PROJECT_ID.iam.gserviceaccount.com'
       - '--port=8080'
       - '--cpu=2'
       - '--memory=4Gi'
