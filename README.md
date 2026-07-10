@@ -95,16 +95,12 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com `
     artifactregistry.googleapis.com aiplatform.googleapis.com `
     dlp.googleapis.com bigquery.googleapis.com
 
-# Artifact Registry repo for the container image
-gcloud artifacts repositories create icd-predictor `
-    --repository-format=docker --location=us-central1
-
 # Runtime service account with least-privilege roles
-gcloud iam service-accounts create icd-predictor-runtime
+gcloud iam service-accounts create icd-multiagent-predictor-runtime
 $PROJECT = gcloud config get-value project
 foreach ($role in @('roles/dlp.user','roles/aiplatform.user','roles/bigquery.dataViewer','roles/bigquery.jobUser')) {
   gcloud projects add-iam-policy-binding $PROJECT `
-    --member="serviceAccount:icd-predictor-runtime@$PROJECT.iam.gserviceaccount.com" `
+    --member="serviceAccount:icd-multiagent-predictor-runtime@$PROJECT.iam.gserviceaccount.com" `
     --role=$role
 }
 ```
@@ -116,7 +112,7 @@ gcloud builds submit --config cloudbuild.yaml --substitutions=_REGION=us-central
 ```
 
 The final build step prints the **public service URL**, e.g.
-`https://icd-predictor-xxxxxxxxxx-uc.a.run.app`.
+`https://icd-multiagent-predictor-xxxxxxxxxx-uc.a.run.app`.
 
 ### Automate on every push
 
@@ -131,7 +127,7 @@ gcloud builds triggers create github `
 ### Integrate
 
 ```powershell
-$URL = "https://icd-predictor-xxxxxxxxxx-uc.a.run.app"
+$URL = "https://icd-multiagent-predictor-xxxxxxxxxx-uc.a.run.app"
 curl "$URL/healthz"
 curl -X POST "$URL/predict" -H "Content-Type: application/json" `
      -d '{"specimen_source":"Left breast core biopsy","diagnosis":"Invasive ductal carcinoma, grade 2"}'

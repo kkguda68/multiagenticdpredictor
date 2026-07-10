@@ -17,16 +17,14 @@
 #   gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
 #       artifactregistry.googleapis.com aiplatform.googleapis.com \
 #       dlp.googleapis.com bigquery.googleapis.com
-#   gcloud artifacts repositories create icd-predictor \
-#       --repository-format=docker --location=us-central1
 # =========================================================================
 
 substitutions:
   _REGION: us-central1
-  _REPO: icd-predictor
-  _SERVICE: icd-predictor
+  _REPO: icd-multiagent-predictor
+  _SERVICE: icd-multiagent-predictor
   # Runtime service account for Cloud Run (needs DLP, Vertex AI, BigQuery roles).
-  _RUNTIME_SA: icd-predictor-runtime@$PROJECT_ID.iam.gserviceaccount.com
+  _RUNTIME_SA: icd-multiagent-predictor-runtime@$PROJECT_ID.iam.gserviceaccount.com
 
 # Full image path with the build's short commit SHA as the tag.
 images:
@@ -36,6 +34,24 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 steps:
+  # -----------------------------------------------------------------------
+  # 0. Ensure Artifact Registry repository exists.
+  # -----------------------------------------------------------------------
+  - id: create-repo
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        if ! gcloud artifacts repositories describe ${_REPO} --location=${_REGION} > /dev/null 2>&1; then
+          echo "Repository ${_REPO} not found. Creating..."
+          gcloud artifacts repositories create ${_REPO} \
+            --repository-format=docker \
+            --location=${_REGION}
+        else
+          echo "Repository ${_REPO} already exists."
+        fi
+
   # -----------------------------------------------------------------------
   # 1. Build the Docker image.
   # -----------------------------------------------------------------------
@@ -48,6 +64,7 @@ steps:
       - '-t'
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'
       - '.'
+    waitFor: ['create-repo']
 
   # -----------------------------------------------------------------------
   # 2. Push both tags to Artifact Registry.
