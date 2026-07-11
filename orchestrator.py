@@ -93,11 +93,35 @@ class ClinicalReasoningNode(BaseAgent):
         yield Event(author=self.name)
 
 
-class BigQueryRAGNode(BaseAgent):
-    """ADK node for Agent 3 (BigQuery RAG) + output guardrail."""
+# class BigQueryRAGNode(BaseAgent):
+#     """ADK node for Agent 3 (BigQuery RAG) + output guardrail."""
+# 
+#     model_config = {"arbitrary_types_allowed": True}
+#     logic: BigQueryRAGAgent
+# 
+#     async def _run_async_impl(
+#         self, ctx: InvocationContext
+#     ) -> AsyncGenerator[Event, None]:
+#         state = ctx.session.state
+#         if state.get("error"):
+#             yield Event(author=self.name)
+#             return
+#         try:
+#             raw_prediction = await self.logic.run(state["formal"])
+#             # Output guardrail: re-validate against the strict schema.
+#             prediction = validate_prediction_output(raw_prediction)
+#             state["prediction"] = prediction
+#             state.setdefault("stages", []).extend(["bigquery_rag", "output_guardrail"])
+#         except (GuardrailError, ValueError) as exc:
+#             logger.error("orchestrator.bigquery_rag_error", error=str(exc))
+#             state["error"] = f"bigquery_rag: {exc}"
+#         except Exception as exc:  # noqa: BLE001
+#             logger.error("orchestrator.bigquery_rag_unexpected", error=str(exc))
+#             state["error"] = f"bigquery_rag: {exc}"
+#         yield Event(author=self.name)
 
-    model_config = {"arbitrary_types_allowed": True}
-    logic: BigQueryRAGAgent
+class GeminiPredictionNode(BaseAgent):
+    """ADK node that replaces BigQuery RAG with a direct Gemini prediction call."""
 
     async def _run_async_impl(
         self, ctx: InvocationContext
@@ -107,17 +131,45 @@ class BigQueryRAGNode(BaseAgent):
             yield Event(author=self.name)
             return
         try:
-            raw_prediction = await self.logic.run(state["formal"])
-            # Output guardrail: re-validate against the strict schema.
+            formal = state["formal"]
+            client = genai.Client(
+                vertexai=True,
+                project=settings.gcp_project_id,
+                location=settings.gcp_location
+            )
+            
+            prompt = (
+                "You are an expert medical coder. Predict the most specific ICD-10-CM code "
+                "for the following pathology report.\n\n"
+                f"Formal Text: {formal.formal_text}\n"
+                f"Extracted Concepts: {', '.join(formal.clinical_concepts)}\n"
+            )
+            
+            # Force Gemini to return JSON that matches our Pydantic schema
+            config = types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=ICDPrediction,
+                temperature=0.0
+            )
+            
+            response = await client.aio.models.generate_content(
+                model='gemini-1.5-pro',
+                contents=prompt,
+                config=config
+            )
+            
+            raw_prediction = json.loads(response.text)
+            # Output guardrail: re-validate against the strict schema rules
             prediction = validate_prediction_output(raw_prediction)
             state["prediction"] = prediction
-            state.setdefault("stages", []).extend(["bigquery_rag", "output_guardrail"])
+            state.setdefault("stages", []).extend(["gemini_prediction", "output_guardrail"])
+            
         except (GuardrailError, ValueError) as exc:
-            logger.error("orchestrator.bigquery_rag_error", error=str(exc))
-            state["error"] = f"bigquery_rag: {exc}"
+            logger.error("orchestrator.gemini_prediction_error", error=str(exc))
+            state["error"] = f"gemini_prediction: {exc}"
         except Exception as exc:  # noqa: BLE001
-            logger.error("orchestrator.bigquery_rag_unexpected", error=str(exc))
-            state["error"] = f"bigquery_rag: {exc}"
+            logger.error("orchestrator.gemini_prediction_unexpected", error=str(exc))
+            state["error"] = f"gemini_prediction: {exc}"
         yield Event(author=self.name)
 
 
@@ -131,11 +183,13 @@ class ICDPredictionOrchestrator:
         reasoning_node = ClinicalReasoningNode(
             name="clinical_reasoning", logic=ClinicalReasoningAgent()
         )
-        rag_node = BigQueryRAGNode(name="bigquery_rag", logic=BigQueryRAGAgent())
+        # rag_node = BigQueryRAGNode(name="bigquery_rag", logic=BigQueryRAGAgent())
+        gemini_node = GeminiPredictionNode(name="gemini_prediction")
 
         self._root_agent = SequentialAgent(
             name="icd_pipeline",
-            sub_agents=[phi_node, reasoning_node, rag_node],
+            # agents=[phi_node, reasoning_node, rag_node],
+            agents=[phi_node, reasoning_node, gemini_node],
         )
         self._runner = InMemoryRunner(
             agent=self._root_agent, app_name=settings.adk_app_name
