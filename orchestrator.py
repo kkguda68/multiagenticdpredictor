@@ -26,7 +26,9 @@ ADK `InMemoryRunner`.
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+import json
 
+from google import genai
 from google.adk.agents import BaseAgent, SequentialAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
