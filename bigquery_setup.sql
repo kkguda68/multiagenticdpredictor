@@ -55,13 +55,16 @@ CLUSTER BY icd_code;                        -- accelerates code-level aggregatio
 --    IVF works well at the 1M-row scale. COSINE matches the query in
 --    agents/bigquery_rag.py.
 -- -------------------------------------------------------------------------
-CREATE VECTOR INDEX IF NOT EXISTS historical_embedding_idx
-ON `qwiklabs-gcp-03-d9bd89368565.pathology.historical_transactions`(embedding)
-OPTIONS (
-  index_type    = 'IVF',
-  distance_type = 'COSINE',
-  ivf_options   = '{"num_lists": 1000}'
-);
+-- NOTE: Commented out because BigQuery requires at least one non-null embedding
+-- to infer the array dimension (768) before creating the index. 
+-- Run this manually ONLY AFTER you have backfilled the embeddings in Step 2.
+-- CREATE VECTOR INDEX IF NOT EXISTS historical_embedding_idx
+-- ON `qwiklabs-gcp-03-d9bd89368565.pathology.historical_transactions`(embedding)
+-- OPTIONS (
+--   index_type    = 'IVF',
+--   distance_type = 'COSINE',
+--   ivf_options   = '{"num_lists": 1000}'
+-- );
 
 -- -------------------------------------------------------------------------
 -- 4. Full-text SEARCH index for the keyword fallback path.

@@ -84,7 +84,7 @@ class Settings(BaseSettings):
         description="Hugging Face model id for the local PubMedBERT encoder.",
     )
     # Inference device: 'auto' -> cuda if available else cpu, or force 'cpu'/'cuda'.
-    pubmedbert_device: str = Field(default="auto")
+    pubmedbert_device: str = Field(default="cpu")
     # Max sequence length fed to the tokenizer.
     pubmedbert_max_length: int = Field(default=512, ge=16, le=512)
     # Embedding dimensionality (PubMedBERT base = 768). Must match BigQuery table.

@@ -52,7 +52,7 @@ Copy-Item .env.example .env   # then edit values
 gcloud auth application-default login
 
 # 4. Provision BigQuery (edit project id first)
-bq query --use_legacy_sql=false < bigquery_setup.sql
+bq query --use_legacy_sql=false --location=us-central1 < bigquery_setup.sql
 ```
 
 ## Run
