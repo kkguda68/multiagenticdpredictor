@@ -93,6 +93,7 @@ steps:
       - '--allow-unauthenticated'
       - '--port=8080'
       - '--cpu=4'
+      - '--cpu=2'
       - '--memory=8Gi'
       - '--concurrency=20'
       - '--min-instances=0'
