@@ -95,7 +95,7 @@ steps:
       - '--memory=8Gi'
       - '--concurrency=20'
       - '--min-instances=0'
-      - '--max-instances=4'
+      - '--max-instances=2'
       - '--timeout=180'
       - '--set-env-vars=GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=${_REGION},BQ_DATASET=pathology,BQ_HISTORY_TABLE=historical_transactions,PUBMEDBERT_DEVICE=cpu,RAG_USE_VECTOR_SEARCH=true,ADK_APP_NAME=icd_predictor,LOG_LEVEL=INFO'
     waitFor: ['push']
