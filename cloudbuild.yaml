@@ -78,6 +78,7 @@ steps:
   # -----------------------------------------------------------------------
   # 3. Deploy to Cloud Run (public, unauthenticated external URL).
   #    Remove --allow-unauthenticated to require IAM/IAP auth instead.
+
   # -----------------------------------------------------------------------
   - id: deploy
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
